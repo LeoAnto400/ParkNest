@@ -39,6 +39,13 @@ export default async function Page({
           You’ve been logged out.
         </p>
       )}
+      {params.message === "email-deferred" && (
+        <p role="status" className="mb-5 text-sm text-muted-foreground">
+          Email confirmation and password recovery are deferred for this
+          classroom demo. Use your demo account password, or create a new
+          account.
+        </p>
+      )}
       <AuthForm mode="login" next={next} />
     </AuthShell>
   );

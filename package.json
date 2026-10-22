@@ -2,13 +2,13 @@
   "name": "parknest-workspace",
   "private": true,
   "scripts": {
-    "setup": "npm --prefix frontend ci",
+    "setup": "npm --prefix frontend ci && npm --prefix backend ci",
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "start": "npm --prefix frontend run start",
     "lint": "npm --prefix frontend run lint",
     "typecheck": "npm --prefix frontend run typecheck",
-    "test": "npm --prefix frontend test",
+    "test": "npm --prefix frontend test && npm --prefix backend test",
     "format": "npm --prefix frontend run format"
   }
 }

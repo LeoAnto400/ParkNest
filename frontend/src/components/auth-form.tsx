@@ -1,31 +1,19 @@
 "use client";
 import { useActionState } from "react";
-import Link from "next/link";
-import {
-  login,
-  signup,
-  forgotPassword,
-  resetPassword,
-  updateProfile,
-  logout,
-} from "@/app/auth/actions";
+import { login, signup, updateProfile, logout } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Profile } from "@/lib/supabase/types";
 
-type Mode = "login" | "signup" | "forgot" | "reset" | "profile";
+type Mode = "login" | "signup" | "profile";
 const actions = {
   login,
   signup,
-  forgot: forgotPassword,
-  reset: resetPassword,
   profile: updateProfile,
 };
 const labels = {
   login: "Log in",
   signup: "Create account",
-  forgot: "Send reset link",
-  reset: "Save new password",
   profile: "Save changes",
 };
 
@@ -39,12 +27,12 @@ export function AuthForm({
   profile?: Profile;
 }) {
   const [state, action, pending] = useActionState(actions[mode], {});
-  const password = ["login", "signup", "reset"].includes(mode);
+  const password = ["login", "signup"].includes(mode);
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="next" value={next} />
       <fieldset disabled={pending} className="space-y-5 disabled:opacity-70">
-        {(mode === "signup" || mode === "profile") && (
+        {mode === "profile" && (
           <Field
             label="Full name"
             name="name"
@@ -55,7 +43,7 @@ export function AuthForm({
             placeholder="Alex Morgan"
           />
         )}
-        {mode !== "reset" && (
+        {
           <Field
             label="Email address"
             name="email"
@@ -67,13 +55,13 @@ export function AuthForm({
             defaultValue={profile?.email}
             placeholder="you@example.com"
           />
-        )}
+        }
         {mode === "profile" && (
           <p className="-mt-3 text-xs text-muted-foreground">
             Your email is managed by your account and cannot be edited here.
           </p>
         )}
-        {(mode === "signup" || mode === "profile") && (
+        {mode === "profile" && (
           <Field
             label="Phone number (optional)"
             name="phone"
@@ -86,7 +74,7 @@ export function AuthForm({
         )}
         {password && (
           <Field
-            label={mode === "reset" ? "New password" : "Password"}
+            label="Password"
             name="password"
             type="password"
             autoComplete={
@@ -98,34 +86,11 @@ export function AuthForm({
             aria-describedby={mode === "login" ? undefined : "password-help"}
           />
         )}
-        {(mode === "signup" || mode === "reset") && (
-          <>
-            <p
-              id="password-help"
-              className="-mt-3 text-xs text-muted-foreground"
-            >
-              Use 8–72 characters, with a mix of words, numbers, or symbols.
-            </p>
-            <Field
-              label="Confirm password"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={72}
-              required
-            />
-          </>
-        )}
-        {mode === "login" && (
-          <div className="text-right">
-            <Link
-              className="text-sm font-medium text-primary hover:underline"
-              href="/forgot-password"
-            >
-              Forgot password?
-            </Link>
-          </div>
+        {mode === "signup" && (
+          <p id="password-help" className="text-xs text-muted-foreground">
+            Use 8–72 characters. You will be signed in immediately. Add your
+            name later in My profile.
+          </p>
         )}
         {state.error && (
           <p

@@ -1,82 +1,62 @@
-# ParkNest
+# ParkNest classroom demo
 
-Authentication foundation for a two-person parking-space sharing app. Built with Next.js App Router, React, TypeScript, Tailwind CSS, shadcn/ui components, Supabase Auth, and PostgreSQL. Includes signup, email confirmation, login/logout, password recovery, an editable profile, and a protected dashboard. One user can drive and host; there are no account roles. Listings, search, maps, bookings, and payments are intentionally future work.
-
-## Project structure
+Next.js App Router, React, TypeScript, Tailwind/shadcn UI, and a **real Supabase backend**. Accounts, profiles, spaces, availability, and reservations persist in PostgreSQL; optional space photos persist in Supabase Storage. Refreshing or using another browser does not erase data. There is no localStorage database, seeded listing data, payment gateway, or card collection.
 
 ```text
-ParkNest/
-  frontend/            # Next.js app, auth adapters, components, and app tests
-    src/
-    public/
-    tests/
-    .env.example
-    package.json
-  backend/             # Supabase backend schema, RLS, triggers, and SQL tests
-    supabase/
-      migrations/
-      tests/
-  package.json         # Convenience commands that run the frontend scripts
-  README.md
+frontend/                  Next.js app, server-side auth adapters, UI, tests
+backend/supabase/migrations Database schema, RLS, triggers, Storage policies
+backend/supabase/tests      SQL checks (fixtures roll back)
+package.json               Root commands forwarding to frontend
 ```
 
-Supabase is the backend service. Next.js Server Actions, route handlers, and cookie/session helpers remain inside `frontend/` because they run in the Next.js server runtime. See [frontend notes](frontend/README.md) and [backend notes](backend/README.md).
+## 1. Supabase dashboard settings
 
-## Local setup
+Use a Supabase project dedicated to the classroom demo.
 
-1. Install Node.js **22.16 or newer** and npm. From the repository root run `npm run setup` (equivalent to `npm --prefix frontend ci`) (PowerShell with restricted scripts: use `npm.cmd` instead of `npm`).
-2. Create a Supabase project. In **SQL Editor**, execute the complete file `backend/supabase/migrations/202610220001_profiles.sql` once. It creates `profiles`, RLS policies, profile creation/email-sync triggers, and backfills existing Auth users. It does not require any application service-role key.
-3. In **Authentication → Sign In / Providers → Email**, enable Email sign-in, allow new user signups, and enable **Confirm email**. Set minimum password length to **8**. Disable phone-only/anonymous signups for this email-based app.
-4. In **Authentication → URL Configuration**, set **Site URL** to `http://localhost:3000`. Add this **Redirect URL**: `http://localhost:3000/auth/confirm**` (the wildcard includes the query string). Use `localhost` consistently, not `127.0.0.1`.
-5. In **Authentication → Email Templates**, replace the action links with the following. These custom token-hash links are required; the default `ConfirmationURL` uses a different callback flow.
+1. **Authentication → Sign In / Providers**: allow new user signups; enable **Email** with email/password sign-in; turn **Confirm email OFF**. Set the minimum password length to **8**. Anonymous and phone sign-in are not needed. Leave CAPTCHA off for this demo; the app does not include a CAPTCHA widget.
+2. **Authentication → URL Configuration**: set **Site URL** to `http://localhost:3000` (or your deployed HTTPS app origin). No email callback redirect allowlist is required for this password-only demo.
+3. **Email Templates / SMTP**: no custom templates or SMTP setup is required. Existing template settings can remain; this demo does not use confirmation or reset emails. Old confirmation/reset routes return to login with an explanation.
+4. Use **new demo emails after switching Confirm email off**. Previously unconfirmed users may still be unable to log in; use fresh demo accounts instead. Existing confirmed users and profile data remain valid.
+5. **Database → Extensions**: the migration enables `btree_gist` automatically. Keep it enabled: the database uses it to reject overlapping reservations, even from concurrent requests or another browser.
+6. **Storage**: migration 002 creates a **private** `listing-photos` bucket. Verify it allows JPEG/PNG/WebP with a **512 KB** limit and stays private. No manually public bucket is needed. RLS permits uploads under the uploader's user-ID folder and signed-in reads of photos attached to listings.
+7. Keep **Row Level Security enabled** on `profiles`, `listings`, and `bookings`. Keep the Supabase Data API enabled with `public` exposed (the default). Do not add permissive policies or service-role credentials to the app.
 
-   **Confirm signup:**
+With Confirm email disabled, Supabase returns a session from signup and the app signs in immediately. This is a demo setting, not email-ownership verification. [Supabase Auth configuration](https://supabase.com/docs/guides/auth/general-configuration).
 
-   ```html
-   <h2>Welcome to ParkNest</h2>
-   <p>
-     <a href="{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=email"
-       >Confirm your email</a
-     >
-   </p>
-   ```
+## 2. SQL migrations (in order)
 
-   **Reset password:**
+Run each file's entire contents in **Supabase → SQL Editor**:
 
-   ```html
-   <h2>Reset your ParkNest password</h2>
-   <p>
-     <a
-       href="{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=recovery"
-       >Reset your password</a
-     >
-   </p>
-   ```
+1. [`202610220001_profiles.sql`](backend/supabase/migrations/202610220001_profiles.sql) — existing profile table, account-creation/email-sync triggers, and own-profile RLS. **Skip if already applied. This file is unchanged; do not drop or recreate existing profiles.**
+2. [`202610220002_demo_parking.sql`](backend/supabase/migrations/202610220002_demo_parking.sql) — spaces with a fixed availability window, bookings, RLS, database booking validation and overlap protection, private photo bucket and Storage policies.
 
-   The app supplies `RedirectTo` with a `?next=...` query, so these links intentionally append `&amp;`. Users click **Continue** on the landing page to consume the token via POST, protecting against link-scanning bots. This flow supports opening the email on a different browser/device.
+These are one-time migrations, not repeatable seed scripts. If a migration fails, its transaction rolls back; fix the reported issue before retrying. No demonstration accounts or listings are inserted by migrations.
 
-6. Configure **Authentication → Email / SMTP Settings** with your SMTP provider for sending to real users. Supabase's built-in test mail service restricts recipients and rate limits delivery; use an allowed team email when testing without custom SMTP. Keep SMTP credentials in Supabase, not this app.
-7. Copy `frontend/.env.example` to `frontend/.env.local`:
+Optional verification in a **development** project, after both migrations: run [`profiles.sql`](backend/supabase/tests/profiles.sql), then [`demo_parking.sql`](backend/supabase/tests/demo_parking.sql). Both roll back their fixtures. They check profile isolation, booking privacy, owner visibility, simulated totals, forbidden writes, self-booking rejection, availability bounds, overlapping bookings, and adjacent bookings.
 
-   ```powershell
-   Copy-Item frontend/.env.example frontend/.env.local
-   ```
+## 3. Environment variables
 
-   Fill in:
+Keep your existing `frontend/.env.local`. If starting fresh, copy `frontend/.env.example` to `frontend/.env.local` and fill in only:
 
-   ```dotenv
-   NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
-   NEXT_PUBLIC_SITE_URL=http://localhost:3000
-   ```
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
+```
 
-   Find the project URL and publishable key in the project's **Connect** dialog / **Settings → API Keys**. A legacy `anon` key can also be supplied in the publishable-key variable. **Never use `service_role` or a secret key.** The public key is safe to ship because PostgreSQL RLS and column grants enforce access. `.env.local` is ignored by Git.
+Find these in the project's **Connect** dialog / **Settings → API Keys**. A legacy `anon` key also works in the publishable-key variable. Never use a `service_role` or secret key. No database password, SMTP key, Razorpay key, or `NEXT_PUBLIC_SITE_URL` is needed. An existing `NEXT_PUBLIC_SITE_URL` value is harmless but unused. `.env.local` is ignored by Git; do not commit it.
 
-8. Run `npm run dev`, open `http://localhost:3000`, and create an account. Restart after changing environment variables. Without configuration, public pages render a setup notice; authentication cannot connect.
+## 4. Install and start
 
-For deployment, select `frontend/` as the application root directory and set the same three variables in your hosting environment, change `NEXT_PUBLIC_SITE_URL` and Supabase Site URL to your canonical HTTPS origin, and allow `https://YOUR_DOMAIN/auth/confirm**`. Keep localhost in the allowlist only if still developing against that project. Do not put authenticated responses behind a shared CDN cache. No database password or service-role key is needed by the app.
+Node.js **22.16+** is required. From the repository root:
 
-## Checks
+```sh
+npm run setup
+npm run dev
+```
+
+Open `http://localhost:3000`. On PowerShell with restricted scripts, use `npm.cmd` instead of `npm`. Restart the server after changing environment variables. There is no separate backend process; both browsers must use the same Supabase project. Deploy the app with **`frontend/` as the application root** and the two environment variables above.
+
+Checks and production preview:
 
 ```sh
 npm run lint
@@ -86,34 +66,31 @@ npm run build
 npm run start
 ```
 
-`npm test` exercises redirect safety and input validation with Node's test runner. `npm run format` formats source files. After configuring Supabase, run `backend/supabase/tests/profiles.sql` in SQL Editor to verify own-profile reads/updates, cross-user isolation, and forbidden email/deletion changes; it rolls back all fixtures. Use a development Supabase project.
+Stop the dev server before running the production preview on the same port.
 
-Manual integration checklist:
+## 5. Click-by-click classroom demo
 
-- Visit `/profile` while logged out; log in and verify you return to `/profile`. `/dashboard` must also redirect when logged out.
-- Sign up, follow the email link, press Continue, and verify a matching profile row exists. Retry an expired/reused link and confirm the recovery page appears.
-- Edit name and optional phone; reload and confirm persistence. Email is read-only.
-- Request a password reset, follow the email link, set a new password, and log in with it. The old password should fail.
-- Log out and attempt to revisit protected pages. Use two separate browser sessions to verify each user sees only their own data.
-- Check forms at mobile widths, keyboard navigation, invalid input, incorrect password, and a disconnected network.
+Use a normal browser for the owner and an incognito window or second browser for the driver. Pick times **tomorrow**, not in the past. Form inputs use the device's local time zone; saved times are displayed explicitly in **IST**.
 
-Live email delivery and database policies require your Supabase project and cannot be verified by the build alone. The initial dependency audit reports a development-only `braces` advisory through Next.js's ESLint tooling; npm's proposed fix downgrades Next.js tooling to v14, so no incompatible forced downgrade is applied.
+1. Click **Get started**. Enter a new demo email and an 8+ character password. Click **Create account**. You land on the dashboard immediately, without email.
+2. Open **My profile**, add the owner's name/optional phone, and **Save changes**. Refresh to show persistence.
+3. Click **Share a space**. Enter a title, address, description, and rate such as ₹50/hour. Set availability tomorrow from 09:00 to 18:00. Optionally choose a JPEG/PNG/WebP smaller than 512 KB. Click **Save space**.
+4. In the second browser, create a different driver account. Click **Spaces**, open the saved space, and see the same availability/photo. No separate owner/driver account type is required.
+5. Choose tomorrow from 10:00 to 11:00 inside the window. Click **Confirm booking · Simulated payment**. **My bookings** shows a confirmed reservation, ₹50, and **Simulated payment — no money charged**. No card or gateway screen appears.
+6. Refresh **My bookings**; the reservation remains. Refresh the owner's **Dashboard**; it appears under **Incoming reservations**. Log in as the driver in another browser to show the same saved booking.
+7. In the driver window, log out and create a third account. Open the same space and attempt 10:30–11:30. The app reports that the space is already booked. This rejection comes from PostgreSQL, not browser state. Try 11:00–12:00 instead; adjacent bookings are allowed.
+8. Log out and visit `/bookings` or `/dashboard` directly. Login is required, and signing back in returns to the intended page.
 
-Verified locally: lint, TypeScript, all 3 unit tests, production build, public-page HTTP responses, and Next.js redirect responses for signed-out protected pages. Production dependency audit reports zero vulnerabilities. A browser was unavailable in the implementation environment, so visual/browser integration checks remain on the checklist above.
+## Security and demo limits
 
-## Shared foundation / ownership
+- Profiles remain private to their user. Listings/availability are visible to signed-in users. Bookings are visible only to the driver and listing owner. Every write verifies the signed-in user and is also restricted in PostgreSQL.
+- Booking price and payment status are assigned by a database trigger. The database rejects self-bookings, past/invalid/out-of-window bookings, and stays longer than 30 days. A GiST exclusion constraint rejects overlapping `[start, end)` ranges for the same listing, including concurrent inserts. [PostgreSQL range constraints](https://www.postgresql.org/docs/current/rangetypes.html).
+- Payments are **simulated only**. No Razorpay integration, real charge, card details, refund, or payout exists.
+- The minimal demo supports creating spaces, one fixed availability window per space, browsing details/photos, making reservations, viewing personal bookings, and viewing incoming reservations. Editing/deleting spaces, recurring availability, cancellations, maps, advanced search, and realtime updates are **not implemented**. Refresh to see another user's changes. Existing reservations cannot be rewritten through the client.
+- Password recovery/email confirmation are deferred. Remember demo passwords or create another demo account; there is no insecure password-reset bypass.
+- Photos use private Storage and one-hour signed URLs; refresh if a URL expires. Upload and listing creation are separate service calls. Failed listing inserts attempt to remove unused uploads; an interrupted network can leave an orphan photo for later admin cleanup.
+- `npm test` runs seven app tests plus the SQL migrations/assertions in a development-only, isolated PGlite PostgreSQL runtime. This tests RLS, Storage policies, and booking constraints with minimal Auth/Storage schema scaffolding; it does not test hosted Supabase services or concurrent network requests. Live cross-browser/Auth/Storage verification must be performed against your configured project. No remote settings or migrations are applied automatically by this repository.
 
-- `frontend/src/lib/auth/user.ts`: server-only `getUser()` / `requireUser(next)` verify identity with Supabase; use `user.id` for future bookings and ownership. Never accept an owner/user ID from form input as authorization.
-- `frontend/src/lib/supabase/server.ts` / `frontend/src/lib/supabase/client.ts`: typed cookie-based SSR/browser clients using only the publishable key. The browser helper is available for later interactive features; current mutations use Server Actions.
-- `frontend/src/proxy.ts`: refreshes cookies and preserves the requested protected URL. Pages and mutations also independently verify users. RLS remains the database security boundary.
-- `profiles.id = auth.users.id`; Auth owns email, the user edits only name/phone. Triggers create profiles atomically, sync email, and cascade deletion. Client inserts/deletes and changes to ID/email/timestamps are not granted.
-- `frontend/src/app/auth/actions.ts`: validated account/profile mutations; `auth/confirm` and `auth/verify` handle email tokens. Local-only redirects prevent open redirects. Password-reset requests do not disclose whether an email exists.
-- Person 1 can extend the owner dashboard/listings later. Person 2 should add booking tables referencing this same UUID and their own RLS policies. Do not add separate driver/owner accounts.
+The earlier dependency audit reported a development-only `braces` advisory through Next.js ESLint tooling. No forced incompatible downgrade was applied.
 
-## File inventory
-
-- Root: `package.json` (command wrappers), `.gitignore`, `README.md`.
-- Frontend: `frontend/src/` (pages, auth, UI, and helpers), `frontend/tests/auth.test.mjs`, `frontend/public/`, and all Next.js, TypeScript, ESLint, shadcn/ui, npm, and environment configuration. The existing dependency lockfile is preserved in `frontend/package-lock.json`. Next.js guidance is in `frontend/AGENTS.md`.
-- Backend: `backend/supabase/migrations/202610220001_profiles.sql`, `backend/supabase/tests/profiles.sql`, `backend/README.md`.
-
-Implementation references: [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client), [password authentication](https://supabase.com/docs/guides/auth/passwords), [email templates](https://supabase.com/docs/guides/auth/auth-email-templates).
+Verified for this revision: lint, typecheck, seven app tests, the isolated SQL security test suite, production build, and HTTP checks for the simplified signup form, hidden recovery link, Spaces navigation, and protected-page redirects. Hosted Supabase settings, migrations, and the cross-browser demo still need to be applied/checked in your project using the steps above.

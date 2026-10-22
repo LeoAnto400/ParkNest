@@ -22,10 +22,9 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (
     !data?.claims &&
-    (path === "/dashboard" ||
-      path.startsWith("/dashboard/") ||
-      path === "/profile" ||
-      path.startsWith("/profile/"))
+    ["/dashboard", "/profile", "/listings", "/bookings"].some(
+      (prefix) => path === prefix || path.startsWith(prefix + "/"),
+    )
   ) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", path + request.nextUrl.search);

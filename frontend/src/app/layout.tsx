@@ -47,6 +47,14 @@ export default async function RootLayout({
               aria-label="Main navigation"
               className="flex flex-wrap items-center gap-4 text-sm font-medium sm:gap-7"
             >
+              <Link href="/listings" className="hover:text-primary">
+                Spaces
+              </Link>
+              {user && (
+                <Link href="/bookings" className="hover:text-primary">
+                  My bookings
+                </Link>
+              )}
               <Link href="/dashboard" className="hover:text-primary">
                 Dashboard
               </Link>
