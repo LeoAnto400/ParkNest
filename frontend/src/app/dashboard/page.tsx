@@ -2,10 +2,14 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/user";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, UserRound, ShieldCheck } from "lucide-react";
+import { ListingControls } from "@/components/listing-controls";
 import { money, dateTime } from "@/lib/parking/format";
-export const metadata = { title: "Dashboard" };
-export default async function Page() {
+export const metadata = { title: "Owner dashboard" };
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string; cleanup?: string }>;
+}) {
   const user = await requireUser("/dashboard");
   const supabase = await createClient();
   const { data: profile, error } = await supabase
@@ -13,16 +17,16 @@ export default async function Page() {
     .select("name")
     .eq("id", user.id)
     .single();
-  if (error)
-    throw new Error(
-      "Could not load your profile. Check that the database migration has been applied.",
-    );
+  if (error) throw new Error("Could not load your profile.");
   const { data: spaces, error: spacesError } = await supabase
     .from("listings")
-    .select("id,title")
-    .eq("owner_id", user.id);
+    .select("*")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
   if (spacesError)
-    throw new Error("Apply the demo parking migration to load your dashboard.");
+    throw new Error("Could not load listings. Apply migration 003.");
+  const active = spaces.filter((s) => !s.deleted_at);
+  // Preserve the earlier demo's booking history, including deleted listing rows.
   const reservations = spaces.length
     ? await supabase
         .from("bookings")
@@ -33,96 +37,98 @@ export default async function Page() {
         )
         .order("starts_at")
     : null;
-  if (reservations?.error) throw new Error("Could not load incoming bookings.");
+  if (reservations?.error)
+    throw new Error("Could not load existing reservations.");
+  const message = await searchParams;
   return (
-    <div className="py-12 sm:py-16">
-      <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-        Your ParkNest
-      </p>
-      <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-        Welcome, {profile.name || "neighbor"}.
-      </h1>
-      <p className="mt-4 text-muted-foreground">
-        A little space for everything ahead.
-      </p>
-      <section className="mt-10 rounded-3xl bg-[#153d32] p-8 text-white sm:p-12">
-        <ShieldCheck className="mb-6 size-8 text-lime-200" />
-        <h2 className="text-2xl font-semibold">
-          You’re in. Make yourself at home.
-        </h2>
-        <p className="mt-3 max-w-xl leading-7 text-emerald-50/80">
-          Your account is ready. Keep your details up to date so you’re all set
-          for your next chapter with ParkNest.
-        </p>
-        <Button variant="outline" asChild className="mt-6 text-foreground">
-          <Link href="/profile">
-            View your profile <ArrowUpRight className="size-4" />
-          </Link>
-        </Button>
-      </section>
-      <section className="mt-6 rounded-2xl border border-border bg-white p-6">
-        <div className="flex items-center gap-3">
-          <UserRound className="size-5 text-primary" />
-          <h2 className="font-semibold">One account, both possibilities</h2>
+    <section className="space-y-8 py-12">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-sm text-primary">Owner dashboard</p>
+          <h1 className="mt-2 text-3xl font-semibold">
+            Welcome, {profile.name || "neighbor"}.
+          </h1>
         </div>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          You can drive and host with the same account. All demo payments are
-          simulated; no money is charged.
-        </p>
-      </section>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Button asChild>
-          <Link href="/listings">Browse spaces</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/listings/new">Share a space</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/bookings">My bookings</Link>
-        </Button>
+        <div className="flex gap-3">
+          <Button asChild variant="outline">
+            <Link href="/profile">My profile</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/listings/new">Create listing</Link>
+          </Button>
+        </div>
       </div>
-      <section className="mt-8 space-y-4">
-        <h2 className="text-2xl font-semibold">My spaces</h2>
-        {!spaces.length && (
-          <p className="text-muted-foreground">
-            You haven’t shared a space yet.
+      {message.deleted === "1" && (
+        <p role="status" className="rounded-xl bg-emerald-50 p-3 text-primary">
+          Listing deleted from your dashboard and public pages. Historical
+          reservations are retained.
+        </p>
+      )}
+      {message.cleanup === "1" && (
+        <p role="status" className="text-sm">
+          Some unused photos could not be removed from Storage. The listing is
+          still deleted.
+        </p>
+      )}
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Your listings</h2>
+        {!active.length && (
+          <p className="rounded-2xl border border-border p-6">
+            No listings yet. Create one and save a draft or publish it.
           </p>
         )}
-        {spaces.map((space) => (
-          <Link
-            key={space.id}
-            href={`/listings/${space.id}`}
-            className="block rounded-xl border border-border bg-white p-4 font-medium text-primary hover:underline"
-          >
-            {space.title}
-          </Link>
-        ))}
-      </section>
-      <section className="mt-8 space-y-4">
-        <h2 className="text-2xl font-semibold">Incoming reservations</h2>
-        {!reservations?.data?.length && (
-          <p className="text-muted-foreground">
-            No reservations for your spaces yet.
-          </p>
-        )}
-        {reservations?.data?.map((booking) => (
+        {active.map((space) => (
           <article
-            key={booking.id}
-            className="space-y-2 rounded-xl border border-border bg-white p-4"
+            key={space.id}
+            className="space-y-4 rounded-2xl border border-border bg-white p-6"
           >
-            <h3 className="font-semibold">
-              {spaces.find((s) => s.id === booking.listing_id)?.title}
-            </h3>
+            <div className="flex flex-wrap justify-between gap-3">
+              <h3 className="text-xl font-semibold">
+                <Link
+                  href={`/listings/${space.id}`}
+                  className="hover:underline"
+                >
+                  {space.title}
+                </Link>
+              </h3>
+              <span className="rounded-full bg-muted px-3 py-1 text-sm capitalize">
+                {space.status}
+              </span>
+            </div>
             <p>
-              {dateTime(booking.starts_at)} — {dateTime(booking.ends_at)}
+              {space.address}
+              {space.city && `, ${space.city}`}
             </p>
-            <p>{money(booking.total_paise)} · Simulated payment</p>
-            <p className="break-all text-xs text-muted-foreground">
-              Booking ID: {booking.id}
+            <p className="font-medium text-primary">
+              {money(space.hourly_rate_paise)} / hour
             </p>
+            <ListingControls
+              id={space.id}
+              status={space.status}
+              revision={space.revision}
+            />
           </article>
         ))}
       </section>
-    </div>
+      {Boolean(reservations?.data?.length) && (
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold">Existing demo reservations</h2>
+          {reservations?.data?.map((booking) => (
+            <article
+              key={booking.id}
+              className="space-y-2 rounded-xl border border-border p-4"
+            >
+              <h3 className="font-semibold">
+                {spaces.find((s) => s.id === booking.listing_id)?.title}
+              </h3>
+              <p>
+                {dateTime(booking.starts_at)} — {dateTime(booking.ends_at)}
+              </p>
+              <p>{money(booking.total_paise)} · Simulated payment</p>
+            </article>
+          ))}
+        </section>
+      )}
+    </section>
   );
 }

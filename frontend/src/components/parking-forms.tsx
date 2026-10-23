@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import { createListing, bookSpace } from "@/app/listings/actions";
+import { bookSpace } from "@/app/listings/actions";
 import { localToISO } from "@/lib/parking/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,82 +27,6 @@ function Status({ state }: { state: FormState }) {
       {state.error}
     </p>
   ) : null;
-}
-
-export function ListingForm() {
-  const [state, action, pending] = useActionState(createListing, {});
-  return (
-    <form action={action}>
-      <fieldset disabled={pending} className="space-y-5 disabled:opacity-60">
-        <label className="block space-y-2">
-          <span>Space title</span>
-          <Input
-            name="title"
-            required
-            minLength={3}
-            maxLength={100}
-            placeholder="Covered space near campus"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span>Address</span>
-          <Input
-            name="address"
-            required
-            minLength={5}
-            maxLength={250}
-            placeholder="Building, street, city"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span>Description (optional)</span>
-          <Input
-            name="description"
-            maxLength={1000}
-            placeholder="Entry instructions, size, or landmarks"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span>Hourly rate (₹, simulated)</span>
-          <Input
-            name="rate"
-            type="number"
-            min="1"
-            max="10000"
-            step="0.01"
-            required
-          />
-        </label>
-        <p className="text-sm text-muted-foreground">
-          Choose one availability window. Enter times in your device’s local
-          time zone; saved times are displayed in IST. The window is fixed for
-          this demo.
-        </p>
-        <DateField name="available_from" label="Available from" />
-        <DateField name="available_until" label="Available until" />
-        <label className="block space-y-2">
-          <span>Photo (optional, maximum 512 KB)</span>
-          <Input
-            type="file"
-            name="photo"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.setCustomValidity(
-                file && file.size > 524288
-                  ? "Choose a photo no larger than 512 KB."
-                  : "",
-              );
-            }}
-          />
-        </label>
-        <Status state={state} />
-        <Button type="submit" aria-busy={pending}>
-          {pending ? "Saving space…" : "Save space"}
-        </Button>
-      </fieldset>
-    </form>
-  );
 }
 
 export function BookingForm({ listingId }: { listingId: string }) {

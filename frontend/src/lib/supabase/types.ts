@@ -11,8 +11,32 @@ export type Database = {
     Tables: {
       listings: {
         Row: Listing;
-        Insert: Omit<Listing, "id" | "created_at">;
-        Update: never;
+        Insert: Pick<
+          Listing,
+          | "owner_id"
+          | "title"
+          | "description"
+          | "address"
+          | "city"
+          | "hourly_rate_paise"
+          | "vehicle_types"
+          | "parking_type"
+          | "facilities"
+          | "status"
+          | "photo_paths"
+          | "photo_path"
+        >;
+        Update: Partial<
+          Omit<
+            Listing,
+            | "id"
+            | "owner_id"
+            | "created_at"
+            | "available_from"
+            | "available_until"
+            | "revision"
+          >
+        >;
         Relationships: [];
       };
       bookings: {
@@ -52,8 +76,18 @@ export type Listing = {
   address: string;
   description: string;
   hourly_rate_paise: number;
-  available_from: string;
-  available_until: string;
+  available_from: string | null;
+  available_until: string | null;
+  city: string;
+  vehicle_types: ("car" | "motorcycle" | "bicycle")[];
+  parking_type: "covered" | "open";
+  facilities: (
+    "ev_charging" | "cctv" | "security" | "lighting" | "accessible"
+  )[];
+  status: "draft" | "published";
+  photo_paths: string[];
+  deleted_at: string | null;
+  revision: number;
   photo_path: string | null;
   created_at: string;
 };
